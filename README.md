@@ -9,9 +9,48 @@
 
 **Transform 2-8 hour research tasks into <10 second AI-synthesized intelligence reports**
 
-[Demo](#-live-demo) • [Features](#-key-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture)
+[Demo](#-live-demo) • [Features](#-key-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation)
 
 </div>
+
+---
+
+## 📑 Table of Contents
+
+<details>
+<summary>Click to expand</summary>
+
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+  - [Ultra-Fast AI Synthesis](#-ultra-fast-ai-synthesis)
+  - [Advanced Cerebras AI Capabilities](#-advanced-cerebras-ai-capabilities)
+  - [Multi-Turn Conversation Threading](#-multi-turn-conversation-threading)
+  - [Voice Input](#-voice-input-wow-factor)
+  - [6 Parallel Data Sources](#-6-parallel-data-sources)
+  - [Custom MCP Gateway](#-custom-mcp-gateway)
+- [Architecture](#-architecture)
+- [Technology Stack](#-technology-stack)
+- [MCP Data Sources](#-mcp-data-sources)
+- [Advanced Features](#-advanced-features)
+  - [Cerebras AI Capabilities](#-cerebras-ai-capabilities)
+  - [Multi-Turn Conversation Threading](#-multi-turn-conversation-threading-1)
+  - [Voice Input](#-voice-input-hands-free-research)
+- [Quick Start](#-quick-start)
+- [Usage](#-usage)
+- [Project Structure](#-project-structure)
+- [Performance Metrics](#-performance-metrics)
+- [Configuration](#-configuration)
+- [API Documentation](#-api-documentation)
+- [Testing](#-testing)
+- [Deployment](#-deployment)
+- [Troubleshooting](#-troubleshooting)
+- [Nice-to-Have Features & Roadmap](#-nice-to-have-features--roadmap)
+- [Documentation](#-documentation)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Acknowledgments](#-acknowledgments)
+
+</details>
 
 ---
 
@@ -1032,6 +1071,38 @@ For a comprehensive list of all implemented features, see `FEATURE_SUMMARY.md`. 
 - Docker Compose orchestration (11 services)
 - PostgreSQL database
 - Redis caching layer
+
+---
+
+## 📚 Documentation
+
+Comprehensive documentation is available to help you understand, use, and extend ResearchPilot:
+
+### 📖 **Essential Guides**
+- **[Getting Started Guide](GETTING_STARTED.md)** - Detailed setup and installation instructions
+- **[API Documentation](API.md)** - Complete API reference with examples
+- **[MCP Gateway Implementation](MCP_GATEWAY_IMPLEMENTATION.md)** - Custom gateway architecture details
+
+### 🚀 **Development & Planning**
+- **[Next Steps](NEXT_STEPS.md)** - Actionable roadmap with implementation plans (Tool Use, Templates, Export Formats)
+- **[Feature Summary](FEATURE_SUMMARY.md)** - Complete inventory of 37 implemented features
+- **[Implementation Complete](IMPLEMENTATION_COMPLETE.md)** - Latest development session achievements
+- **[Cerebras Enhancement Plan](ENHANCEMENT_PLAN_CEREBRAS.md)** - Advanced AI capabilities roadmap
+
+### 🛠️ **Development Resources**
+- **[Documentation Hub](docs/)** - Complete documentation index
+- **[Voice Input Debugging](docs/development/VOICE_INPUT_DEBUGGING.md)** - Web Speech API troubleshooting
+- **[Archived Documentation](docs/archive/)** - Historical project documentation
+
+### 📊 **Quick Links**
+| Document | Description | Status |
+|----------|-------------|--------|
+| [NEXT_STEPS.md](NEXT_STEPS.md) | Prioritized feature roadmap with code samples | ✅ Current |
+| [FEATURE_SUMMARY.md](FEATURE_SUMMARY.md) | Feature comparison matrix & achievement summary | ✅ Current |
+| [API.md](API.md) | REST API endpoints & response formats | ✅ Current |
+| [GETTING_STARTED.md](GETTING_STARTED.md) | Step-by-step setup guide | ✅ Current |
+
+**💡 Tip:** Start with [GETTING_STARTED.md](GETTING_STARTED.md) for setup, then check [NEXT_STEPS.md](NEXT_STEPS.md) for what to implement next!
 
 ---
 
