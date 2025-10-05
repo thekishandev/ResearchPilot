@@ -1,39 +1,165 @@
 """
 Cerebras API Service
 Handles ultra-fast inference using Llama 3.3 70B
+Supports: Streaming, Structured Outputs, Tool Use, Reasoning
 """
 import aiohttp
 import asyncio
-from typing import AsyncIterator, Dict, List, Any
+import json
+from typing import AsyncIterator, Dict, List, Any, Optional
 from loguru import logger
 
 from app.core.config import settings
 from app.core.monitoring import cerebras_api_calls_total
+from app.schemas.synthesis import SYNTHESIS_JSON_SCHEMA, ResearchSynthesis
 
 
 class CerebrasService:
-    """Service for Cerebras API interactions"""
+    """Service for Cerebras API interactions with advanced capabilities"""
     
     def __init__(self):
         self.api_key = settings.CEREBRAS_API_KEY
         self.api_url = settings.CEREBRAS_API_URL
         self.model = settings.CEREBRAS_MODEL
+        
+    # Tool definitions for intelligent source selection
+    MCP_TOOLS = [
+        {
+            "type": "function",
+            "function": {
+                "name": "search_web",
+                "strict": True,
+                "description": "Search the web for current information, news, and general knowledge. Best for recent events, current data, and broad topics.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query"
+                        }
+                    },
+                    "required": ["query"],
+                    "additionalProperties": False
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_arxiv",
+                "strict": True,
+                "description": "Search academic papers on ArXiv. Best for scientific research, academic papers, and peer-reviewed studies.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The academic search query"
+                        }
+                    },
+                    "required": ["query"],
+                    "additionalProperties": False
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_github",
+                "strict": True,
+                "description": "Search GitHub repositories and code. Best for software development, open-source projects, and code examples.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The GitHub search query"
+                        }
+                    },
+                    "required": ["query"],
+                    "additionalProperties": False
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_news",
+                "strict": True,
+                "description": "Search news articles from various sources. Best for current events, breaking news, and recent developments.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The news search query"
+                        }
+                    },
+                    "required": ["query"],
+                    "additionalProperties": False
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "query_database",
+                "strict": True,
+                "description": "Query cached research results from previous queries. Best for retrieving past research and building on previous work.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The database query"
+                        }
+                    },
+                    "required": ["query"],
+                    "additionalProperties": False
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_documents",
+                "strict": True,
+                "description": "Search local documents and files. Best for accessing uploaded documents, PDFs, and local knowledge base.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The document search query"
+                        }
+                    },
+                    "required": ["query"],
+                    "additionalProperties": False
+                }
+            }
+        }
+    ]
     
     async def synthesize(
         self,
         query: str,
         context: List[Dict[str, Any]],
         parent_context: Dict[str, Any] | None = None,
-        stream: bool = True
+        stream: bool = True,
+        use_structured_output: bool = True,
+        use_reasoning: bool = True
     ) -> AsyncIterator[str] | str:
         """
         Synthesize research results using Cerebras Llama 3.3 70B
+        Now with Structured Outputs and Reasoning support
         
         Args:
             query: Original research query
             context: List of results from various sources
             parent_context: Optional parent research context for follow-up queries
             stream: Whether to stream the response
+            use_structured_output: Use JSON schema for structured responses
+            use_reasoning: Enable reasoning capabilities
         
         Returns:
             Streaming or complete synthesis
@@ -45,12 +171,25 @@ class CerebrasService:
             # Build prompt (with parent context if available)
             prompt = self._build_synthesis_prompt(query, context_text, parent_context)
             
+            # Determine reasoning effort based on query complexity
+            reasoning_effort = self._determine_reasoning_effort(query) if use_reasoning else None
+            
+            logger.info(f"Synthesis: query_length={len(query)}, reasoning={reasoning_effort}, structured={use_structured_output}")
+            
             # Make API call
             if stream:
-                async for chunk in self._stream_completion(prompt):
+                async for chunk in self._stream_completion(
+                    prompt, 
+                    reasoning_effort=reasoning_effort,
+                    use_structured_output=use_structured_output
+                ):
                     yield chunk
             else:
-                result = await self._complete(prompt)
+                result = await self._complete(
+                    prompt,
+                    reasoning_effort=reasoning_effort,
+                    use_structured_output=use_structured_output
+                )
                 yield result
                 return
                 
@@ -59,8 +198,53 @@ class CerebrasService:
             cerebras_api_calls_total.labels(model=self.model, status="error").inc()
             raise
     
-    async def _stream_completion(self, prompt: str) -> AsyncIterator[str]:
-        """Stream completion from Cerebras API"""
+    def _determine_reasoning_effort(self, query: str) -> str:
+        """
+        Determine appropriate reasoning effort based on query complexity
+        
+        Returns:
+            "low", "medium", or "high"
+        """
+        # Complexity indicators
+        query_lower = query.lower()
+        
+        # High complexity indicators
+        high_complexity_keywords = [
+            'compare', 'analyze', 'evaluate', 'assess', 'contrast',
+            'implications', 'impact', 'relationship', 'correlate',
+            'explain why', 'explain how', 'reasoning', 'strategy'
+        ]
+        
+        # Simple fact-finding indicators
+        simple_keywords = [
+            'what is', 'who is', 'when did', 'where is', 'define',
+            'list', 'name', 'find', 'show me'
+        ]
+        
+        # Check for high complexity
+        if any(keyword in query_lower for keyword in high_complexity_keywords):
+            return "high"
+        
+        # Check for simple queries
+        if any(keyword in query_lower for keyword in simple_keywords):
+            return "low"
+        
+        # Check query length (longer queries usually more complex)
+        if len(query.split()) > 20:
+            return "high"
+        elif len(query.split()) < 8:
+            return "low"
+        
+        # Default to medium
+        return "medium"
+    
+    async def _stream_completion(
+        self, 
+        prompt: str,
+        reasoning_effort: Optional[str] = None,
+        use_structured_output: bool = False
+    ) -> AsyncIterator[str]:
+        """Stream completion from Cerebras API with optional structured output and reasoning"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -71,7 +255,7 @@ class CerebrasService:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a helpful AI assistant like Perplexity. Answer questions directly and conversationally. Focus on what the user asked for. Use clear formatting with headers, bullet points, and numbered lists. Be comprehensive but concise. Always cite sources."
+                    "content": "You are a helpful AI research assistant. Provide comprehensive, well-structured answers with clear citations. Focus on accuracy and relevance."
                 },
                 {
                     "role": "user",
@@ -80,8 +264,19 @@ class CerebrasService:
             ],
             "stream": True,
             "temperature": 0.7,
-            "max_tokens": 2000,
+            "max_tokens": 3000,
         }
+        
+        # Add reasoning effort if specified (for gpt-oss-120b model)
+        if reasoning_effort and self.model == "gpt-oss-120b":
+            payload["reasoning_effort"] = reasoning_effort
+            logger.info(f"Using reasoning_effort: {reasoning_effort}")
+        
+        # Add structured output schema if requested
+        # NOTE: Structured outputs with streaming requires collecting full response first
+        if use_structured_output:
+            payload["response_format"] = SYNTHESIS_JSON_SCHEMA
+            logger.info("Using structured JSON output schema")
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -107,10 +302,16 @@ class CerebrasService:
                                 data = line_text[6:]
                                 if data != '[DONE]':
                                     try:
-                                        import json
                                         chunk = json.loads(data)
                                         if 'choices' in chunk and len(chunk['choices']) > 0:
                                             delta = chunk['choices'][0].get('delta', {})
+                                            
+                                            # Handle reasoning content if present
+                                            if 'reasoning' in delta:
+                                                # Log reasoning tokens but don't stream them
+                                                logger.debug(f"Reasoning: {delta['reasoning'][:100]}")
+                                            
+                                            # Stream main content
                                             content = delta.get('content', '')
                                             if content:
                                                 yield content
@@ -122,8 +323,13 @@ class CerebrasService:
             cerebras_api_calls_total.labels(model=self.model, status="timeout").inc()
             raise Exception("Cerebras API timeout")
     
-    async def _complete(self, prompt: str) -> str:
-        """Get complete response from Cerebras API"""
+    async def _complete(
+        self, 
+        prompt: str,
+        reasoning_effort: Optional[str] = None,
+        use_structured_output: bool = False
+    ) -> str:
+        """Get complete response from Cerebras API with optional structured output and reasoning"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -134,7 +340,7 @@ class CerebrasService:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a helpful AI assistant like Perplexity. Answer questions directly and conversationally. Focus on what the user asked for. Use clear formatting with headers, bullet points, and numbered lists. Be comprehensive but concise. Always cite sources."
+                    "content": "You are a helpful AI research assistant. Provide comprehensive, well-structured answers with clear citations. Focus on accuracy and relevance."
                 },
                 {
                     "role": "user",
@@ -143,8 +349,16 @@ class CerebrasService:
             ],
             "stream": False,
             "temperature": 0.7,
-            "max_tokens": 2000,
+            "max_tokens": 3000,
         }
+        
+        # Add reasoning effort if specified
+        if reasoning_effort and self.model == "gpt-oss-120b":
+            payload["reasoning_effort"] = reasoning_effort
+        
+        # Add structured output schema if requested
+        if use_structured_output:
+            payload["response_format"] = SYNTHESIS_JSON_SCHEMA
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -163,7 +377,15 @@ class CerebrasService:
                     result = await response.json()
                     cerebras_api_calls_total.labels(model=self.model, status="success").inc()
                     
-                    return result['choices'][0]['message']['content']
+                    # Handle structured response
+                    content = result['choices'][0]['message']['content']
+                    
+                    # Log reasoning if present
+                    if 'reasoning' in result['choices'][0]['message']:
+                        reasoning = result['choices'][0]['message']['reasoning']
+                        logger.info(f"Reasoning tokens: {len(reasoning)} chars")
+                    
+                    return content
                     
         except asyncio.TimeoutError:
             logger.error("Cerebras API timeout")
