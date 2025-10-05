@@ -1,0 +1,152 @@
+{
+  "gateway": {
+    "name": "ResearchPilot MCP Gateway",
+    "version": "1.0.0",
+    "port": 8080,
+    "log_level": "INFO"
+  },
+  "security": {
+    "interceptors": [
+      {
+        "name": "audit_logger",
+        "type": "audit",
+        "enabled": true,
+        "config": {
+          "log_requests": true,
+          "log_responses": true,
+          "log_errors": true
+        }
+      },
+      {
+        "name": "rate_limiter",
+        "type": "rate_limit",
+        "enabled": true,
+        "config": {
+          "requests_per_minute": 60,
+          "burst": 10
+        }
+      },
+      {
+        "name": "sql_injection_preventer",
+        "type": "security",
+        "enabled": true,
+        "config": {
+          "check_patterns": [
+            "(?i)(union.*select)",
+            "(?i)(insert.*into)",
+            "(?i)(drop.*table)",
+            "(?i)(delete.*from)",
+            "(?i)(--|;|'|\")"
+          ]
+        }
+      }
+    ]
+  },
+  "sources": [
+    {
+      "name": "web-search",
+      "enabled": true,
+      "endpoint": "http://mcp-web-search:9001",
+      "timeout": 30,
+      "retry": {
+        "enabled": true,
+        "max_attempts": 2,
+        "backoff": "exponential"
+      },
+      "health_check": {
+        "enabled": true,
+        "interval": 30,
+        "path": "/health"
+      }
+    },
+    {
+      "name": "arxiv",
+      "enabled": true,
+      "endpoint": "http://mcp-arxiv:9002",
+      "timeout": 30,
+      "retry": {
+        "enabled": true,
+        "max_attempts": 2,
+        "backoff": "exponential"
+      },
+      "health_check": {
+        "enabled": true,
+        "interval": 30,
+        "path": "/health"
+      }
+    },
+    {
+      "name": "database",
+      "enabled": true,
+      "endpoint": "http://mcp-database:9003",
+      "timeout": 15,
+      "retry": {
+        "enabled": true,
+        "max_attempts": 3,
+        "backoff": "exponential"
+      },
+      "health_check": {
+        "enabled": true,
+        "interval": 30,
+        "path": "/health"
+      }
+    },
+    {
+      "name": "filesystem",
+      "enabled": true,
+      "endpoint": "http://mcp-filesystem:9004",
+      "timeout": 20,
+      "retry": {
+        "enabled": true,
+        "max_attempts": 2,
+        "backoff": "exponential"
+      },
+      "health_check": {
+        "enabled": true,
+        "interval": 30,
+        "path": "/health"
+      }
+    },
+    {
+      "name": "github",
+      "enabled": true,
+      "endpoint": "http://mcp-github:9005",
+      "timeout": 30,
+      "retry": {
+        "enabled": true,
+        "max_attempts": 2,
+        "backoff": "exponential"
+      },
+      "health_check": {
+        "enabled": true,
+        "interval": 30,
+        "path": "/health"
+      }
+    },
+    {
+      "name": "news",
+      "enabled": true,
+      "endpoint": "http://mcp-news:9006",
+      "timeout": 30,
+      "retry": {
+        "enabled": true,
+        "max_attempts": 2,
+        "backoff": "exponential"
+      },
+      "health_check": {
+        "enabled": true,
+        "interval": 30,
+        "path": "/health"
+      }
+    }
+  ],
+  "routing": {
+    "strategy": "round_robin",
+    "load_balancing": false
+  },
+  "monitoring": {
+    "enabled": true,
+    "metrics_port": 9090,
+    "prometheus": true
+  }
+}

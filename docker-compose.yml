@@ -1,0 +1,196 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: researchpilot-db
+    environment:
+      POSTGRES_USER: researchpilot
+      POSTGRES_PASSWORD: researchpilot
+      POSTGRES_DB: researchpilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U researchpilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - researchpilot-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: researchpilot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - researchpilot-network
+
+  # Ollama (Local Llama) - DISABLED (insufficient memory, using Cerebras exclusively)
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: researchpilot-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   environment:
+  #     - OLLAMA_MODELS=/root/.ollama/models
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #   networks:
+  #     - researchpilot-network
+
+  # MCP Server: Web Search
+  mcp-web-search:
+    build:
+      context: ./mcp-servers/web-search
+      dockerfile: Dockerfile
+    container_name: researchpilot-mcp-web-search
+    environment:
+      - MCP_SERVER_PORT=9001
+      - LOG_LEVEL=INFO
+    networks:
+      - researchpilot-network
+
+  # MCP Server: ArXiv
+  mcp-arxiv:
+    build:
+      context: ./mcp-servers/arxiv
+      dockerfile: Dockerfile
+    container_name: researchpilot-mcp-arxiv
+    environment:
+      - MCP_SERVER_PORT=9002
+      - LOG_LEVEL=INFO
+    networks:
+      - researchpilot-network
+
+  # MCP Server: Database
+  mcp-database:
+    build:
+      context: ./mcp-servers/database
+      dockerfile: Dockerfile
+    container_name: researchpilot-mcp-database
+    environment:
+      - MCP_SERVER_PORT=9003
+      - DATABASE_URL=postgresql://researchpilot:researchpilot@postgres:5432/researchpilot
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - researchpilot-network
+
+  # MCP Server: Filesystem
+  mcp-filesystem:
+    build:
+      context: ./mcp-servers/filesystem
+      dockerfile: Dockerfile
+    container_name: researchpilot-mcp-filesystem
+    environment:
+      - MCP_SERVER_PORT=9004
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data/documents:/documents:ro
+    networks:
+      - researchpilot-network
+
+  # MCP Server: GitHub
+  mcp-github:
+    build:
+      context: ./mcp-servers/github
+      dockerfile: Dockerfile
+    container_name: researchpilot-mcp-github
+    environment:
+      - MCP_SERVER_PORT=9005
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - LOG_LEVEL=INFO
+    networks:
+      - researchpilot-network
+
+  # MCP Server: News
+  mcp-news:
+    build:
+      context: ./mcp-servers/news
+      dockerfile: Dockerfile
+    container_name: researchpilot-mcp-news
+    environment:
+      - MCP_SERVER_PORT=9006
+      - NEWS_API_KEY=${NEWS_API_KEY}
+      - LOG_LEVEL=INFO
+    networks:
+      - researchpilot-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: researchpilot-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
+      - DATABASE_URL=postgresql://researchpilot:researchpilot@postgres:5432/researchpilot
+      - REDIS_URL=redis://redis:6379/0
+      # - OLLAMA_HOST=http://ollama:11434  # DISABLED - Using Cerebras exclusively
+      - APP_ENV=development
+      - DEBUG=true
+      # MCP Server URLs (direct access, no gateway)
+      - MCP_WEB_SEARCH_URL=http://mcp-web-search:9001
+      - MCP_ARXIV_URL=http://mcp-arxiv:9002
+      - MCP_DATABASE_URL=http://mcp-database:9003
+      - MCP_FILESYSTEM_URL=http://mcp-filesystem:9004
+      - MCP_GITHUB_URL=http://mcp-github:9005
+      - MCP_NEWS_URL=http://mcp-news:9006
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - researchpilot-network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # React Frontend (for development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: researchpilot-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - researchpilot-network
+    command: npm run dev -- --host
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:
+
+networks:
+  researchpilot-network:
+    driver: bridge
