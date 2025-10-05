@@ -23,6 +23,7 @@ class CerebrasService:
         self,
         query: str,
         context: List[Dict[str, Any]],
+        parent_context: Dict[str, Any] | None = None,
         stream: bool = True
     ) -> AsyncIterator[str] | str:
         """
@@ -31,6 +32,7 @@ class CerebrasService:
         Args:
             query: Original research query
             context: List of results from various sources
+            parent_context: Optional parent research context for follow-up queries
             stream: Whether to stream the response
         
         Returns:
@@ -40,8 +42,8 @@ class CerebrasService:
             # Build context summary
             context_text = self._build_context(context)
             
-            # Build prompt
-            prompt = self._build_synthesis_prompt(query, context_text)
+            # Build prompt (with parent context if available)
+            prompt = self._build_synthesis_prompt(query, context_text, parent_context)
             
             # Make API call
             if stream:
@@ -223,8 +225,51 @@ class CerebrasService:
         
         return ''.join(context_parts) if context_parts else "No data available from sources."
     
-    def _build_synthesis_prompt(self, query: str, context: str) -> str:
-        """Build synthesis prompt"""
+    def _build_synthesis_prompt(self, query: str, context: str, parent_context: Dict[str, Any] | None = None) -> str:
+        """Build synthesis prompt with optional conversation history"""
+        
+        # If this is a follow-up, include parent context
+        if parent_context and parent_context.get('synthesis'):
+            return f"""This is a FOLLOW-UP question in an ongoing research conversation.
+
+PREVIOUS RESEARCH CONTEXT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Previous Question: {parent_context.get('query', 'Unknown')}
+
+Previous Answer (Summary):
+{parent_context.get('synthesis', 'No previous context')[:1000]}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CURRENT FOLLOW-UP QUESTION: {query}
+
+NEW Information from multiple sources:
+
+{context}
+
+Instructions:
+1. This is a FOLLOW-UP question - use the PREVIOUS RESEARCH CONTEXT above to understand what we're building on
+2. Answer the follow-up question DIRECTLY, referencing the previous context when relevant
+3. If the user asks "compare", "what about", "how do they differ" etc., they're asking about things mentioned in the previous answer
+4. Use a conversational, easy-to-read style like Perplexity or ChatGPT
+5. Format with clear sections using markdown:
+   - Use ## for main sections
+   - Use numbered lists (1., 2., 3.) or bullet points as appropriate
+   - Use **bold** for important terms
+   - Use code blocks for technical details if relevant
+
+6. Structure should be natural and flow based on the question:
+   - For "compare": Show side-by-side comparison with the previous answer
+   - For "latest developments": Focus on what's new since the previous research
+   - For "pros and cons": Compare benefits and drawbacks
+   - For "alternatives": Show other options than what was previously discussed
+
+7. Keep it comprehensive but scannable - use short paragraphs
+8. End with a brief "Sources" section listing what each source contributed
+9. Be specific with names, numbers, and facts - avoid vague generalizations
+
+Remember: You have the context of the previous conversation. Use it to give a coherent, connected answer!"""
+        
+        # Otherwise, this is an initial query
         return f"""User Question: {query}
 
 Information from multiple sources:

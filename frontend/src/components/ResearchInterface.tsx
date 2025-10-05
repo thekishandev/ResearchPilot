@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles, MessageSquarePlus } from 'lucide-react'
+import { Search, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles, MessageSquarePlus, Mic, MicOff } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { submitResearch } from '@/lib/api'
 import { ResearchQuery, ResearchStatus } from '@/types/research'
@@ -31,6 +31,74 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
   const [isStreaming, setIsStreaming] = useState(false)
   const [showOrchestration, setShowOrchestration] = useState(false)
   const [currentResearchId, setCurrentResearchId] = useState<string | null>(null)  // Track current research for follow-ups
+  const [isListening, setIsListening] = useState(false)
+  const [recognition, setRecognition] = useState<any>(null)
+
+  // Initialize Web Speech API
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
+      const recognitionInstance = new SpeechRecognition()
+      recognitionInstance.continuous = false
+      recognitionInstance.interimResults = false
+      recognitionInstance.lang = 'en-US'
+
+      recognitionInstance.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript
+        console.log('Voice input transcript:', transcript)
+        setQuery(transcript)
+        setIsListening(false)
+        
+        // Auto-submit the query after voice input
+        // Wait for state to update
+        setTimeout(() => {
+          if (transcript.trim() && transcript.length >= 10) {
+            console.log('Auto-submitting voice query...')
+            mutation.mutate({
+              query: transcript.trim(),
+              sources: undefined,
+              max_sources: 6,
+              include_credibility: true,
+              parent_research_id: currentResearchId || undefined,
+            })
+          } else {
+            alert('Please speak at least 10 characters for a valid research query.')
+          }
+        }, 100)
+      }
+
+      recognitionInstance.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error)
+        setIsListening(false)
+        if (event.error === 'not-allowed') {
+          alert('Microphone access denied. Please allow microphone access in your browser settings.')
+        } else if (event.error === 'no-speech') {
+          alert('No speech detected. Please try again.')
+        }
+      }
+
+      recognitionInstance.onend = () => {
+        setIsListening(false)
+      }
+
+      setRecognition(recognitionInstance)
+    }
+  }, [])
+
+  const toggleVoiceInput = () => {
+    if (!recognition) {
+      alert('Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.')
+      return
+    }
+
+    if (isListening) {
+      recognition.stop()
+      setIsListening(false)
+    } else {
+      recognition.start()
+      setIsListening(true)
+    }
+  }
 
   // Load research if initial ID is provided
   useEffect(() => {
@@ -100,6 +168,10 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
           // Ensure we have a valid status object
           if (data && typeof data === 'object' && data.status) {
             setResearchStatus(data)
+            // Update the item in conversation history
+            setConversationHistory(prev => 
+              prev.map(item => item.id === data.id ? data : item)
+            )
             console.log(`Updated research status to: ${data.status}`)
             
             // Close the connection on completion or failure
@@ -136,8 +208,10 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault()
+    }
     
     console.log('Submit clicked, query length:', query.length)
     
@@ -171,6 +245,19 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
     }
   }
 
+  const getStatusIconForResearch = (research: ResearchStatus) => {
+    switch (research.status) {
+      case 'completed':
+        return <CheckCircle2 className="h-5 w-5 text-green-500" />
+      case 'failed':
+        return <XCircle className="h-5 w-5 text-red-500" />
+      case 'processing':
+        return <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
+      default:
+        return <AlertCircle className="h-5 w-5 text-yellow-500" />
+    }
+  }
+
   const isLoading = mutation.isPending || isStreaming
 
   return (
@@ -189,20 +276,50 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
       {/* Query Input */}
       <Card>
         <CardHeader>
-          <CardTitle>Research Query</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Research Query
+            {isListening && (
+              <span className="text-sm font-normal text-red-500 animate-pulse flex items-center gap-1">
+                <Mic className="h-4 w-4" />
+                Listening...
+              </span>
+            )}
+          </CardTitle>
           <CardDescription>
-            Enter your research question. We'll query web search, academic papers, GitHub, news, and more.
+            Enter your research question or click the 🎤 microphone to speak. We'll query web search, academic papers, GitHub, news, and more.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Textarea
-              placeholder="Example: What are the latest breakthroughs in quantum computing?"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="min-h-[120px] resize-none"
-              disabled={isLoading}
-            />
+            <div className="relative">
+              <Textarea
+                placeholder="Example: What are the latest breakthroughs in quantum computing?"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="min-h-[120px] resize-none pr-14"
+                disabled={isLoading}
+              />
+              {/* Voice Input Button */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={toggleVoiceInput}
+                disabled={isLoading || !recognition}
+                className={`absolute bottom-3 right-3 h-8 w-8 p-0 ${
+                  isListening 
+                    ? 'text-red-500 animate-pulse bg-red-50 dark:bg-red-950' 
+                    : 'text-muted-foreground hover:text-primary hover:bg-accent'
+                }`}
+                title={isListening ? 'Listening... Click to stop' : 'Click to speak your research query'}
+              >
+                {isListening ? (
+                  <MicOff className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
             
             {/* Sample Queries */}
             {!query && !researchStatus && (
@@ -266,120 +383,149 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
         isActive={showOrchestration && researchStatus?.status === 'processing'}
       />
 
-      {/* Status Card */}
-      {researchStatus && researchStatus.status && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {getStatusIcon()}
-                <div>
-                  <div className="font-medium">
-                    Status: {researchStatus.status.charAt(0).toUpperCase() + researchStatus.status.slice(1)}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {researchStatus.status === 'processing' && 'Querying sources and synthesizing results...'}
-                    {researchStatus.status === 'completed' && 'Research completed successfully'}
-                    {researchStatus.status === 'failed' && 'Research failed. Please try again.'}
-                  </div>
-                </div>
-              </div>
-              
-              {researchStatus.credibility_score !== undefined && (
-                <Badge variant={researchStatus.credibility_score >= 0.7 ? 'default' : 'secondary'}>
-                  Credibility: {(researchStatus.credibility_score * 100).toFixed(0)}%
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Sources Panel */}
-      {researchStatus?.results && (
-        <SourcesPanel results={researchStatus.results} />
-      )}
-
-      {/* Results Display */}
-      {researchStatus?.synthesis && (
-        <>
-          <ResultsDisplay
-            synthesis={researchStatus.synthesis}
-            credibilityScore={researchStatus.credibility_score}
-          />
-          
-          {/* Follow-up Actions */}
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-blue-200 dark:border-blue-800">
+      {/* Conversation History - Show all research items */}
+      {conversationHistory.length > 0 && conversationHistory.map((research, index) => (
+        <div key={research.id} className="space-y-6">
+          {/* Query Header */}
+          <Card className="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900 dark:to-gray-900">
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div>
-                  <h3 className="font-semibold text-lg mb-1">Want to dive deeper?</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Ask a follow-up question or refine your research
-                  </p>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-1">
+                  {index === 0 ? (
+                    <Search className="h-5 w-5 text-primary" />
+                  ) : (
+                    <MessageSquarePlus className="h-5 w-5 text-blue-500" />
+                  )}
                 </div>
-                <Button
-                  onClick={() => {
-                    setQuery('')
-                    // Don't clear researchStatus - keep it for follow-up context
-                    document.querySelector('textarea')?.focus()
-                  }}
-                  variant="default"
-                  className="gap-2"
-                >
-                  <MessageSquarePlus className="h-4 w-4" />
-                  Ask Follow-up Question
-                </Button>
-              </div>
-              
-              {/* Suggested Follow-ups */}
-              <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-800">
-                <p className="text-sm font-medium mb-2">Suggested follow-ups:</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setQuery(`What are the latest developments related to "${researchStatus.query?.substring(0, 50)}..."?`)}
-                    className="text-xs"
-                  >
-                    Latest developments
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setQuery(`Compare the pros and cons of "${researchStatus.query?.substring(0, 50)}..."`)}
-                    className="text-xs"
-                  >
-                    Pros vs Cons
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setQuery(`What are the alternatives to "${researchStatus.query?.substring(0, 50)}..."?`)}
-                    className="text-xs"
-                  >
-                    Show alternatives
-                  </Button>
+                <div className="flex-1">
+                  <div className="text-xs text-muted-foreground mb-1">
+                    {index === 0 ? 'Initial Query' : `Follow-up ${index}`}
+                  </div>
+                  <div className="font-medium text-lg">
+                    {research.query}
+                  </div>
                 </div>
+                {getStatusIconForResearch(research)}
               </div>
             </CardContent>
           </Card>
-        </>
-      )}
 
-      {/* Error Display */}
-      {researchStatus?.error && (
-        <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
+          {/* Status Card */}
+          {research.status && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {getStatusIconForResearch(research)}
+                    <div>
+                      <div className="font-medium">
+                        Status: {research.status.charAt(0).toUpperCase() + research.status.slice(1)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {research.status === 'processing' && 'Querying sources and synthesizing results...'}
+                        {research.status === 'completed' && 'Research completed successfully'}
+                        {research.status === 'failed' && 'Research failed. Please try again.'}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {research.credibility_score !== undefined && (
+                    <Badge variant={research.credibility_score >= 0.7 ? 'default' : 'secondary'}>
+                      Credibility: {(research.credibility_score * 100).toFixed(0)}%
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Sources Panel */}
+          {research.results && (
+            <SourcesPanel results={research.results} />
+          )}
+
+          {/* Results Display */}
+          {research.synthesis && (
+            <ResultsDisplay
+              synthesis={research.synthesis}
+              credibilityScore={research.credibility_score}
+            />
+          )}
+
+          {/* Error Display */}
+          {research.error && (
+            <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-3">
+                  <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                  <div>
+                    <div className="font-medium text-red-900 dark:text-red-100">
+                      Error
+                    </div>
+                    <div className="text-sm text-red-700 dark:text-red-300 mt-1">
+                      {research.error}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      ))}
+
+      {/* Follow-up Actions - Show only after latest completed research */}
+      {researchStatus?.synthesis && researchStatus.status === 'completed' && (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-blue-200 dark:border-blue-800">
           <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
-                <div className="font-medium text-red-900 dark:text-red-100">
-                  Error
-                </div>
-                <div className="text-sm text-red-700 dark:text-red-300 mt-1">
-                  {researchStatus.error}
-                </div>
+                <h3 className="font-semibold text-lg mb-1">Want to dive deeper?</h3>
+                <p className="text-sm text-muted-foreground">
+                  Ask a follow-up question or refine your research
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setQuery('')
+                  // Don't clear researchStatus or conversation - keep all for context
+                  document.querySelector('textarea')?.focus()
+                }}
+                variant="default"
+                className="gap-2"
+              >
+                <MessageSquarePlus className="h-4 w-4" />
+                Ask Follow-up Question
+              </Button>
+            </div>
+            
+            {/* Suggested Follow-ups */}
+            <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-800">
+              <p className="text-sm font-medium mb-2">Suggested follow-ups:</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setQuery(`What are the latest developments related to "${researchStatus.query?.substring(0, 50)}..."?`)}
+                  className="text-xs"
+                >
+                  Latest developments
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setQuery(`Compare the pros and cons of "${researchStatus.query?.substring(0, 50)}..."`)}
+                  className="text-xs"
+                >
+                  Pros vs Cons
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setQuery(`What are the alternatives to "${researchStatus.query?.substring(0, 50)}..."?`)}
+                  className="text-xs"
+                >
+                  Show alternatives
+                </Button>
               </div>
             </div>
           </CardContent>

@@ -34,16 +34,23 @@ class ResearchService:
         Process a research query end-to-end
         
         Steps:
-        1. Query MCP sources in parallel
-        2. Synthesize results with Cerebras
-        3. Score credibility with Ollama
-        4. Save results to database
+        1. Get parent research context if this is a follow-up
+        2. Query MCP sources in parallel
+        3. Synthesize results with Cerebras (including parent context)
+        4. Score credibility with Ollama
+        5. Save results to database
         """
         try:
             logger.info(f"Processing research {research_id}")
             
             # Update status to processing
             await self._update_status(research_id, "processing")
+            
+            # Step 0: Get parent research context if this is a follow-up
+            parent_context = None
+            if query.parent_research_id:
+                logger.info(f"Step 0: Loading parent research {query.parent_research_id} for context...")
+                parent_context = await self._get_parent_context(query.parent_research_id)
             
             # Step 1: Query all sources in parallel
             logger.info("Step 1: Querying MCP sources...")
@@ -55,9 +62,9 @@ class ResearchService:
             # Save intermediate results
             await self._save_source_results(research_id, source_results)
             
-            # Step 2: Synthesize with Cerebras
+            # Step 2: Synthesize with Cerebras (with parent context if available)
             logger.info("Step 2: Synthesizing with Cerebras...")
-            synthesis = await self._synthesize_results(query.query, source_results)
+            synthesis = await self._synthesize_results(query.query, source_results, parent_context)
             
             # Save synthesis
             await self._save_synthesis(research_id, synthesis)
@@ -178,25 +185,48 @@ class ResearchService:
     async def _synthesize_results(
         self,
         query: str,
-        source_results: list
+        source_results: list,
+        parent_context: dict | None = None
     ) -> str:
-        """Synthesize results using Cerebras"""
+        """Synthesize results using Cerebras with optional parent context"""
         synthesis_chunks = []
         
         async for chunk in self.cerebras_service.synthesize(
             query,
             source_results,
+            parent_context=parent_context,
             stream=False
         ):
             synthesis_chunks.append(chunk)
         
         return ''.join(synthesis_chunks) if synthesis_chunks else ""
     
+    async def _get_parent_context(self, parent_research_id: str) -> dict | None:
+        """Get parent research context for follow-up queries"""
+        try:
+            result = await self.db.execute(
+                select(Research).where(Research.id == parent_research_id)
+            )
+            parent_research = result.scalar_one_or_none()
+            
+            if not parent_research:
+                logger.warning(f"Parent research {parent_research_id} not found")
+                return None
+            
+            return {
+                "query": parent_research.query,
+                "synthesis": parent_research.synthesis,
+                "sources": parent_research.sources
+            }
+        except Exception as e:
+            logger.error(f"Error getting parent context: {e}")
+            return None
+    
     async def _update_status(
         self,
         research_id: str,
         status: str,
-        error: str = None
+        error: str | None = None
     ) -> None:
         """Update research status"""
         values = {"status": status}
