@@ -1,0 +1,42 @@
+services:
+  # Backend API Service
+  - type: web
+    name: researchpilot-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: oregon
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: researchpilot-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: researchpilot-redis
+          type: redis
+          property: connectionString
+      - key: CEREBRAS_API_KEY
+        sync: false
+
+databases:
+  # PostgreSQL Database
+  - name: researchpilot-db
+    databaseName: researchpilot
+    user: researchpilot
+    region: oregon
+    plan: free
+
+  # Redis Cache
+  - name: researchpilot-redis
+    region: oregon
+    plan: free
+    maxmemoryPolicy: allkeys-lru
