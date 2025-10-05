@@ -18,8 +18,6 @@
 
 ## 📑 Table of Contents
 
-<details>
-
 - [Overview](#-overview)
 - [Key Features](#-key-features)
   - [Ultra-Fast AI Synthesis](#-ultra-fast-ai-synthesis)
@@ -50,8 +48,6 @@
 - [License](#-license)
 - [Acknowledgments](#-acknowledgments)
 
-</details>
-
 ---
 
 ## 📋 Overview
@@ -64,7 +60,7 @@
 - 📰 **Journalists** - News investigation & fact-checking
 - 💼 **Consultants** - Industry insights & trend analysis
 
-### 🏆 FutureStack GenAI Hackathon 2024
+### 🏆 FutureStack GenAI Hackathon 2025
 
 **Submission Date:** October 5, 2025  
 **Sponsor Prizes:**
@@ -338,7 +334,7 @@ Talk to ResearchPilot using your browser's built-in speech recognition:
 
 ### 1️⃣ Clone Repository
 ```bash
-git clone https://github.com/yourusername/ResearchPilot.git
+git clone https://github.com/thekishandev/ResearchPilot.git
 cd ResearchPilot
 ```
 
@@ -404,7 +400,7 @@ curl http://localhost:8080/health | jq
 
 Try these curated examples:
 
-1. **🔬 Technology:** "Explain quantum computing advances in 2024"
+1. **🔬 Technology:** "Explain quantum computing advances in 2025"
 2. **📈 Business:** "Analyze the future of electric vehicles"
 3. **💊 Health:** "What are the latest treatments for diabetes?"
 4. **🌍 Environment:** "Summarize climate change impacts on polar regions"
@@ -693,7 +689,7 @@ Response: 200 OK
       "What are the practical applications?",
       "What research gaps remain?"
     ],
-    "limitations": "Limited data from 2024 onwards; emerging field"
+    "limitations": "Limited data from 2025 onwards; emerging field"
   }
 }
 ```
@@ -903,7 +899,7 @@ MIT License - See [LICENSE](LICENSE) file for details.
 - **Cerebras** - For ultra-fast Llama 3.3 70B inference (<2s synthesis)
 - **Meta** - For open-source Llama models (cloud + edge deployment)
 - **Docker** - For MCP Gateway orchestration of 6+ data sources
-- **FutureStack** - For hosting the GenAI Hackathon 2024
+- **FutureStack** - For hosting the GenAI Hackathon 2025
 
 </div>
 
@@ -911,7 +907,7 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 ## 📧 Contact
 
-**Hackathon Submission:** FutureStack GenAI 2024  
+**Hackathon Submission:** FutureStack GenAI 2025  
 **Demo:** http://localhost:5173  
 **Questions:** Open a GitHub issue
 
@@ -919,9 +915,9 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 <div align="center">
 
-**🚀 Built for FutureStack GenAI Hackathon 2024 🚀**
+**🚀 Built for FutureStack GenAI Hackathon 2025 🚀**
 
-[![GitHub Stars](https://img.shields.io/github/stars/yourusername/ResearchPilot?style=social)](https://github.com/yourusername/ResearchPilot)
-[![Follow](https://img.shields.io/github/followers/yourusername?style=social)](https://github.com/yourusername)
+[![GitHub Stars](https://img.shields.io/github/stars/thekishandev/ResearchPilot?style=social)](https://github.com/thekishandev/ResearchPilot)
+[![Follow](https://img.shields.io/github/followers/thekishandev?style=social)](https://github.com/thekishandev)
 
 </div>

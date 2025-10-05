@@ -256,3 +256,83 @@ async def process_research_query(
             except Exception as update_error:
                 logger.error(f"Failed to update error status: {update_error}")
 
+
+
+@router.get("/{research_id}/export/pdf")
+async def export_research_pdf(
+    research_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Export research results as PDF
+    """
+    try:
+        from app.services.export_service import ExportService
+        from fastapi.responses import Response
+        
+        export_service = ExportService(db)
+        pdf_bytes = await export_service.export_to_pdf(research_id)
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=research-{research_id}.pdf"
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error exporting PDF for research {research_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{research_id}/export/markdown")
+async def export_research_markdown(
+    research_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Export research results as Markdown
+    """
+    try:
+        from app.services.export_service import ExportService
+        from fastapi.responses import Response
+        
+        export_service = ExportService(db)
+        markdown_content = await export_service.export_to_markdown(research_id)
+        
+        return Response(
+            content=markdown_content,
+            media_type="text/markdown",
+            headers={
+                "Content-Disposition": f"attachment; filename=research-{research_id}.md"
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error exporting Markdown for research {research_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{research_id}/export/json")
+async def export_research_json(
+    research_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Export research results as JSON
+    """
+    try:
+        from app.services.export_service import ExportService
+        
+        export_service = ExportService(db)
+        json_data = await export_service.export_to_json(research_id)
+        
+        return json_data
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error exporting JSON for research {research_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
