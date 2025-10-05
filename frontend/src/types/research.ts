@@ -4,6 +4,7 @@ export interface ResearchQuery {
   max_sources?: number
   include_credibility?: boolean
   parent_research_id?: string
+  use_tool_calling?: boolean
 }
 
 export interface ResearchResponse {

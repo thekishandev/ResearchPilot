@@ -16,6 +16,7 @@ class ResearchQuery(BaseModel):
     max_sources: Optional[int] = Field(default=6, ge=1, le=6, description="Maximum number of sources")
     include_credibility: Optional[bool] = Field(default=True, description="Include credibility scoring")
     parent_research_id: Optional[str] = Field(default=None, description="Parent research ID for follow-up queries")
+    use_tool_calling: Optional[bool] = Field(default=False, description="Use AI to intelligently select sources")
 
 
 class ResearchResponse(BaseModel):

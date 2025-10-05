@@ -518,3 +518,72 @@ Instructions:
 7. Be specific with names, numbers, and facts - avoid vague generalizations
 
 Remember: Answer exactly what the user asked for in a direct, helpful way."""
+    
+    async def complete_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]] = None,
+        max_tokens: int = 1000
+    ) -> Dict[str, Any]:
+        """
+        Complete a chat request with tool calling support.
+        Returns the model's response including any tool calls.
+        """
+        if tools is None:
+            tools = self.MCP_TOOLS
+        
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "max_tokens": max_tokens,
+            "temperature": 0.3,  # Lower temperature for more deterministic tool selection
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                logger.info(f"Cerebras tool calling request: {len(messages)} messages, {len(tools)} tools available")
+                
+                async with session.post(
+                    f"{self.api_url}/chat/completions",
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Cerebras API error: {response.status} - {error_text}")
+                        raise Exception(f"Cerebras API error: {response.status}")
+                    
+                    data = await response.json()
+                    cerebras_api_calls_total.inc()
+                    
+                    # Extract response
+                    if "choices" in data and len(data["choices"]) > 0:
+                        choice = data["choices"][0]
+                        message = choice.get("message", {})
+                        
+                        result = {
+                            "content": message.get("content", ""),
+                            "tool_calls": message.get("tool_calls", []),
+                            "finish_reason": choice.get("finish_reason", "stop")
+                        }
+                        
+                        logger.info(f"Cerebras response: finish_reason={result['finish_reason']}, tool_calls={len(result['tool_calls'])}")
+                        return result
+                    else:
+                        logger.error(f"Unexpected Cerebras response format: {data}")
+                        raise Exception("Unexpected response format from Cerebras API")
+                        
+        except asyncio.TimeoutError:
+            logger.error("Cerebras API request timed out")
+            raise Exception("Cerebras API request timed out")
+        except Exception as e:
+            logger.error(f"Error in Cerebras tool calling: {e}")
+            raise
+

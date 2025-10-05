@@ -221,6 +221,7 @@ async def process_research_query(
     """
     Background task to process research query
     Creates its own database session to avoid transaction conflicts
+    Supports both traditional (query all sources) and tool-based (AI selects sources) modes
     """
     from app.services.research_service import ResearchService
     from app.core.database import AsyncSessionLocal
@@ -229,7 +230,15 @@ async def process_research_query(
     async with AsyncSessionLocal() as db:
         try:
             research_service = ResearchService(db)
-            await research_service.process_query(research_id, query)
+            
+            # Choose processing method based on use_tool_calling parameter
+            if query.use_tool_calling:
+                logger.info(f"Processing research {research_id} with AI tool selection")
+                await research_service.process_query_with_tools(research_id, query)
+            else:
+                logger.info(f"Processing research {research_id} with all sources")
+                await research_service.process_query(research_id, query)
+                
             logger.info(f"Research {research_id} completed successfully")
         except Exception as e:
             logger.error(f"Error processing research {research_id}: {e}")

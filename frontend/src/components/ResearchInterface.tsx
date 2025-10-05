@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles, MessageSquarePlus, Mic, MicOff } from 'lucide-react'
+import { Search, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles, MessageSquarePlus, Mic, MicOff, FileText, Lightbulb } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { submitResearch } from '@/lib/api'
 import { ResearchQuery, ResearchStatus } from '@/types/research'
@@ -19,6 +19,42 @@ const SAMPLE_QUERIES = [
   "State of large language models and their applications"
 ]
 
+// Research Templates for common query patterns
+const RESEARCH_TEMPLATES = {
+  "market-research": {
+    title: "📊 Market Research",
+    icon: "📊",
+    template: "Analyze the market for [TOPIC], including key competitors, market size, growth trends, opportunities, challenges, and future outlook",
+    placeholder: "e.g., electric vehicles, cloud computing, sustainable fashion"
+  },
+  "literature-review": {
+    title: "📚 Literature Review",
+    icon: "📚",
+    template: "Provide a comprehensive literature review on [TOPIC], including key research papers, main findings, methodologies, research gaps, and future research directions",
+    placeholder: "e.g., machine learning in healthcare, climate change modeling"
+  },
+  "competitive-analysis": {
+    title: "🏆 Competitive Analysis",
+    icon: "🏆",
+    template: "Compare [PRODUCT/COMPANY] with top competitors, analyzing features, pricing, market position, strengths, weaknesses, and differentiation strategies",
+    placeholder: "e.g., Tesla vs competitors, ChatGPT vs Claude"
+  },
+  "news-investigation": {
+    title: "📰 News Investigation",
+    icon: "📰",
+    template: "What's happening with [TOPIC] in the news? Include recent developments, key events, expert opinions, and potential implications",
+    placeholder: "e.g., AI regulation, cryptocurrency, space exploration"
+  },
+  "technical-deep-dive": {
+    title: "🔬 Technical Deep Dive",
+    icon: "🔬",
+    template: "Explain [TECHNOLOGY/CONCEPT] in-depth, covering how it works, core principles, use cases, limitations, challenges, and future directions",
+    placeholder: "e.g., transformer architecture, quantum entanglement"
+  }
+}
+
+type TemplateKey = keyof typeof RESEARCH_TEMPLATES
+
 interface ResearchInterfaceProps {
   initialQuery?: string
   initialResearchId?: string
@@ -33,6 +69,31 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
   const [currentResearchId, setCurrentResearchId] = useState<string | null>(null)  // Track current research for follow-ups
   const [isListening, setIsListening] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey | ''>('')
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [useToolCalling, setUseToolCalling] = useState(false)  // NEW: AI-powered source selection
+
+  const applyTemplate = (templateKey: TemplateKey) => {
+    const template = RESEARCH_TEMPLATES[templateKey]
+    // Replace [PLACEHOLDER] with highlighted text for user to fill in
+    const queryText = template.template.replace(/\[([^\]]+)\]/g, '______')
+    setQuery(queryText)
+    setSelectedTemplate(templateKey)
+    setShowTemplates(false)
+    
+    // Focus the textarea after a short delay
+    setTimeout(() => {
+      const textarea = document.querySelector('textarea')
+      if (textarea) {
+        textarea.focus()
+        // Select the first placeholder
+        const firstPlaceholder = queryText.indexOf('______')
+        if (firstPlaceholder !== -1) {
+          textarea.setSelectionRange(firstPlaceholder, firstPlaceholder + 6)
+        }
+      }
+    }, 100)
+  }
 
   const toggleVoiceInput = () => {
     console.log('toggleVoiceInput called, recognition:', !!recognition, 'isListening:', isListening)
@@ -245,6 +306,7 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
       max_sources: 6,
       include_credibility: true,
       parent_research_id: currentResearchId || undefined,  // Include parent ID for follow-ups
+      use_tool_calling: useToolCalling,  // NEW: Enable AI source selection
     })
   }
 
@@ -290,6 +352,55 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
           Get comprehensive intelligence reports in under 10 seconds.
         </p>
       </div>
+
+      {/* Research Templates */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Lightbulb className="h-5 w-5" />
+                Research Templates
+              </CardTitle>
+              <CardDescription>
+                Quick-start your research with pre-built templates for common patterns
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowTemplates(!showTemplates)}
+            >
+              {showTemplates ? 'Hide' : 'Show'} Templates
+            </Button>
+          </div>
+        </CardHeader>
+        {showTemplates && (
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(Object.entries(RESEARCH_TEMPLATES) as [TemplateKey, typeof RESEARCH_TEMPLATES[TemplateKey]][]).map(([key, template]) => (
+                <Button
+                  key={key}
+                  variant={selectedTemplate === key ? "default" : "outline"}
+                  className="h-auto py-4 px-4 flex flex-col items-start gap-2 text-left"
+                  onClick={() => applyTemplate(key)}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <span className="text-2xl">{template.icon}</span>
+                    <span className="font-semibold text-sm">{template.title}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground font-normal">
+                    {template.placeholder}
+                  </span>
+                </Button>
+              ))}
+            </div>
+            <div className="mt-4 p-3 bg-muted rounded-lg text-sm text-muted-foreground">
+              💡 <strong>Tip:</strong> Click a template to load it into the query box. Replace the ______ placeholders with your specific topic.
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
       {/* Query Input */}
       <Card>
@@ -363,6 +474,30 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
                 </div>
               </div>
             )}
+            
+            {/* AI-Powered Source Selection Toggle */}
+            <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 rounded-lg border border-blue-200 dark:border-blue-800">
+              <input
+                type="checkbox"
+                id="useToolCalling"
+                checked={useToolCalling}
+                onChange={(e) => setUseToolCalling(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="useToolCalling" className="text-sm cursor-pointer flex-1">
+                <span className="font-semibold text-blue-700 dark:text-blue-300">
+                  🤖 AI-Powered Source Selection
+                </span>
+                <span className="text-muted-foreground block text-xs mt-0.5">
+                  Let AI intelligently choose the best 2-4 sources for your query (faster & more focused)
+                </span>
+              </label>
+              {useToolCalling && (
+                <Badge variant="default" className="bg-blue-600 text-white">
+                  Smart Mode
+                </Badge>
+              )}
+            </div>
             
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
