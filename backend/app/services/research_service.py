@@ -12,14 +12,7 @@ from datetime import datetime
 
 from app.schemas.research import ResearchQuery
 from app.models.research import Research
-from a                    return ["web-search", "arxiv"]  # Safe default
-                    
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON from AI response: {e}")
-            return ["web-search", "arxiv"]  # Safe default
-        except Exception as e:
-            logger.error(f"Error in AI source selection: {e}")
-            return ["web-search", "arxiv", "news"]  # Safe defaultes.cerebras_service import CerebrasService
+from app.services.cerebras_service import CerebrasService
 from app.services.mcp_orchestrator import MCPOrchestrator
 
 
@@ -334,19 +327,14 @@ Examples:
             if parent_context:
                 user_prompt += f"\n\nContext from previous question: {parent_context['query']}"
             
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            # Get AI's source selection (without tool calling, just text response)
-            response = await self.cerebras_service.complete_with_tools(
-                messages=messages,
-                tools=[],  # No tools needed for this meta-decision
-                max_tokens=100
+            # Get AI's source selection using simple prompt
+            prompt = f"{system_prompt}\n\n{user_prompt}"
+            content = await self.cerebras_service._complete(
+                prompt=prompt,
+                reasoning_effort=None
             )
             
-            content = response["content"].strip()
+            content = content.strip()
             logger.info(f"AI source selection response: {content}")
             
             # Parse the JSON array from response

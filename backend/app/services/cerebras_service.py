@@ -146,7 +146,7 @@ class CerebrasService:
         context: List[Dict[str, Any]],
         parent_context: Dict[str, Any] | None = None,
         stream: bool = True,
-        use_structured_output: bool = True,
+        use_structured_output: bool = False,  # Disabled due to Cerebras schema limitations
         use_reasoning: bool = True
     ) -> AsyncIterator[str] | str:
         """
