@@ -32,6 +32,21 @@ services:
           property: connectionString
       - key: CEREBRAS_API_KEY
         sync: false
+      - key: NEWS_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+
+  # Frontend Static Site
+  - type: web
+    name: researchpilot-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: VITE_API_URL
+        value: https://researchpilot-backend.onrender.com
 
 databases:
   # PostgreSQL Database
