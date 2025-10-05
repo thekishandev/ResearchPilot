@@ -1,6 +1,6 @@
 """
 MCP Orchestrator
-Coordinates requests across multiple MCP servers (direct connection)
+Coordinates requests across multiple MCP servers (with gateway support)
 """
 import aiohttp
 import asyncio
@@ -44,9 +44,16 @@ class MCPOrchestrator:
         },
     }
     
-    def __init__(self):
+    def __init__(self, use_gateway: bool = True):
         self.timeout = settings.MCP_GATEWAY_TIMEOUT
         self.max_concurrent = settings.MAX_CONCURRENT_SOURCES
+        self.use_gateway = use_gateway and hasattr(settings, 'MCP_GATEWAY_URL') and settings.MCP_GATEWAY_URL
+        self.gateway_url = getattr(settings, 'MCP_GATEWAY_URL', None)
+        
+        if self.use_gateway:
+            logger.info(f"MCP Orchestrator using gateway: {self.gateway_url}")
+        else:
+            logger.info("MCP Orchestrator using direct source connections")
     
     async def query_all_sources(
         self,
@@ -101,7 +108,7 @@ class MCPOrchestrator:
         query: str
     ) -> Dict[str, Any]:
         """
-        Query a single MCP source
+        Query a single MCP source (via gateway or direct)
         
         Args:
             source: Source identifier
@@ -122,8 +129,15 @@ class MCPOrchestrator:
             }
         
         try:
-            # Direct connection to MCP server
-            url = f"{source_info['url']}/search"
+            # Choose routing method
+            if self.use_gateway:
+                # Route through MCP Gateway
+                url = f"{self.gateway_url}/query/{source}"
+                logger.debug(f"Querying {source} via gateway: {url}")
+            else:
+                # Direct connection to MCP server
+                url = f"{source_info['url']}/search"
+                logger.debug(f"Querying {source} directly: {url}")
             
             payload = {
                 "query": query,
@@ -139,13 +153,22 @@ class MCPOrchestrator:
                     
                     if response.status == 200:
                         data = await response.json()
-                        logger.info(f"✓ {source}: Retrieved data in {response_time:.2f}s")
+                        
+                        # Handle gateway response format
+                        if self.use_gateway and "data" in data:
+                            actual_data = data["data"]
+                            gateway_time = data.get("response_time_ms", response_time * 1000)
+                            logger.info(f"✓ {source} (gateway): Retrieved data in {gateway_time:.0f}ms")
+                        else:
+                            actual_data = data
+                            logger.info(f"✓ {source} (direct): Retrieved data in {response_time:.2f}s")
                         
                         return {
                             "source": source,
                             "status": "success",
-                            "data": data,
+                            "data": actual_data,
                             "response_time": response_time,
+                            "via_gateway": self.use_gateway,
                         }
                     else:
                         error_text = await response.text()
@@ -156,6 +179,7 @@ class MCPOrchestrator:
                             "status": "error",
                             "error": f"HTTP {response.status}: {error_text}",
                             "response_time": response_time,
+                            "via_gateway": self.use_gateway,
                         }
                         
         except asyncio.TimeoutError:

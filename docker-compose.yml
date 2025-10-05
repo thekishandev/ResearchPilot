@@ -134,6 +134,31 @@ services:
     networks:
       - researchpilot-network
 
+  # MCP Gateway - Unified orchestration and security
+  mcp-gateway:
+    build:
+      context: ./mcp-gateway
+      dockerfile: Dockerfile
+    container_name: researchpilot-mcp-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - LOG_LEVEL=INFO
+    depends_on:
+      - mcp-web-search
+      - mcp-arxiv
+      - mcp-database
+      - mcp-filesystem
+      - mcp-github
+      - mcp-news
+    networks:
+      - researchpilot-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # FastAPI Backend
   backend:
     build:
@@ -149,7 +174,9 @@ services:
       # - OLLAMA_HOST=http://ollama:11434  # DISABLED - Using Cerebras exclusively
       - APP_ENV=development
       - DEBUG=true
-      # MCP Server URLs (direct access, no gateway)
+      # MCP Gateway URL (unified routing)
+      - MCP_GATEWAY_URL=http://mcp-gateway:8080
+      # MCP Server URLs (direct access for backward compatibility)
       - MCP_WEB_SEARCH_URL=http://mcp-web-search:9001
       - MCP_ARXIV_URL=http://mcp-arxiv:9002
       - MCP_DATABASE_URL=http://mcp-database:9003
@@ -163,6 +190,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mcp-gateway:
+        condition: service_started
     networks:
       - researchpilot-network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
