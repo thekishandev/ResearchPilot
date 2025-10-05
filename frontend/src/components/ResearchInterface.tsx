@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { Search, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { submitResearch } from '@/lib/api'
 import { ResearchQuery, ResearchStatus } from '@/types/research'
@@ -9,11 +9,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge'
 import { SourcesPanel } from './SourcesPanel'
 import { ResultsDisplay } from './ResultsDisplay'
+import { OrchestrationStatus } from './OrchestrationStatus'
+
+const SAMPLE_QUERIES = [
+  "Latest developments in quantum computing 2024",
+  "AI chip market leaders and competitive analysis",
+  "Climate tech investment trends and key players",
+  "Recent breakthroughs in fusion energy research",
+  "State of large language models and their applications"
+]
 
 export function ResearchInterface() {
   const [query, setQuery] = useState('')
   const [researchStatus, setResearchStatus] = useState<ResearchStatus | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
+  const [showOrchestration, setShowOrchestration] = useState(false)
 
   const mutation = useMutation({
     mutationFn: (data: ResearchQuery) => submitResearch(data),
@@ -25,6 +35,8 @@ export function ResearchInterface() {
         status: response.status || 'processing',
         query: query.trim(),
       } as ResearchStatus)
+      // Show orchestration status
+      setShowOrchestration(true)
       // Start streaming results
       startStreamingResults(response.id)
     },
@@ -65,6 +77,7 @@ export function ResearchInterface() {
               console.log(`Research ${data.status}, closing SSE connection after ${messageCount} messages`)
               eventSource.close()
               setIsStreaming(false)
+              setShowOrchestration(false)
             }
           } else {
             console.warn('Invalid SSE data format:', data)
@@ -162,6 +175,31 @@ export function ResearchInterface() {
               disabled={isLoading}
             />
             
+            {/* Sample Queries */}
+            {!query && !researchStatus && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Sparkles className="h-4 w-4" />
+                  <span>Try these sample queries:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {SAMPLE_QUERIES.map((sampleQuery, index) => (
+                    <Button
+                      key={index}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setQuery(sampleQuery)}
+                      className="text-xs h-auto py-2 px-3 hover:bg-blue-50 dark:hover:bg-blue-950 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                      disabled={isLoading}
+                    >
+                      {sampleQuery}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
                 {query.length} / 1000 characters
@@ -193,6 +231,11 @@ export function ResearchInterface() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Live Orchestration Status */}
+      <OrchestrationStatus 
+        isActive={showOrchestration && researchStatus?.status === 'processing'}
+      />
 
       {/* Status Card */}
       {researchStatus && researchStatus.status && (

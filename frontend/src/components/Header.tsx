@@ -1,10 +1,11 @@
-import { Rocket, Github } from 'lucide-react'
+import { Rocket, Github, Zap, Brain, Container } from 'lucide-react'
+import { Badge } from './ui/badge'
 
 export function Header() {
   return (
     <header className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-primary rounded-lg p-2">
               <Rocket className="h-6 w-6 text-white" />
@@ -14,17 +15,34 @@ export function Header() {
                 ResearchPilot
               </h1>
               <p className="text-xs text-muted-foreground">
-                AI Research Copilot
+                AI Research Copilot - FutureStack GenAI Hackathon
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span>Powered by Cerebras</span>
-              </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Sponsor Badges */}
+            <div className="hidden lg:flex items-center gap-2">
+              <Badge variant="outline" className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950 dark:to-red-950 border-orange-200 dark:border-orange-800">
+                <Zap className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+                <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Powered by Cerebras</span>
+              </Badge>
+              
+              <Badge variant="outline" className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-200 dark:border-blue-800">
+                <Brain className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Meta Llama 3.3 70B</span>
+              </Badge>
+              
+              <Badge variant="outline" className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-cyan-50 to-blue-50 dark:from-cyan-950 dark:to-blue-950 border-cyan-200 dark:border-cyan-800">
+                <Container className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400" />
+                <span className="text-xs font-medium text-cyan-700 dark:text-cyan-300">Docker Orchestration</span>
+              </Badge>
+            </div>
+            
+            {/* Mobile: Single status badge */}
+            <div className="lg:hidden flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-xs text-muted-foreground">6 sources active</span>
             </div>
             
             <a
