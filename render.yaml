@@ -1,4 +1,11 @@
 services:
+  # Redis Cache Service (must be defined first so backend can reference it)
+  - type: redis
+    name: researchpilot-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
   # Backend API Service
   - type: web
     name: researchpilot-backend
@@ -19,18 +26,12 @@ services:
           name: researchpilot-db
           property: connectionString
       - key: REDIS_URL
-        fromDatabase:
+        fromService:
+          type: redis
           name: researchpilot-redis
           property: connectionString
       - key: CEREBRAS_API_KEY
         sync: false
-
-  # Redis Cache Service
-  - type: redis
-    name: researchpilot-redis
-    plan: free
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList: []
 
 databases:
   # PostgreSQL Database
