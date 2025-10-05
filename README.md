@@ -10,7 +10,7 @@
 
 **Transform 2-8 hour research tasks into <10 second AI-synthesized intelligence reports**
 
-[Demo](#-live-demo) • [Features](#-key-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation)
+[Demo](https://researchpilot-frontend.onrender.com) • [Features](#-key-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation)
 
 </div>
 
@@ -908,7 +908,7 @@ MIT License - See [LICENSE](LICENSE) file for details.
 ## 📧 Contact
 
 **Hackathon Submission:** FutureStack GenAI 2025  
-**Demo:** http://localhost:5173  
+**Demo:** ![ResearchPilot](https://researchpilot-frontend.onrender.com)
 **Questions:** Open a GitHub issue
 
 ---
