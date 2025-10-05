@@ -11,7 +11,7 @@ services:
     name: researchpilot-backend
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
-    dockerContext: .
+    dockerContext: ./backend
     plan: free
     healthCheckPath: /health
     envVars:
@@ -42,7 +42,7 @@ services:
     name: researchpilot-frontend
     runtime: docker
     dockerfilePath: ./frontend/Dockerfile
-    dockerContext: .
+    dockerContext: ./frontend
     plan: free
     envVars:
       - key: VITE_API_URL
