@@ -46,7 +46,7 @@ export function Header() {
             </div>
             
             <a
-              href="https://github.com/yourusername/ResearchPilot"
+              href="https://github.com/thekishandev/ResearchPilot"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
