@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Search, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Search, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles, MessageSquarePlus } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { submitResearch } from '@/lib/api'
 import { ResearchQuery, ResearchStatus } from '@/types/research'
@@ -19,11 +19,29 @@ const SAMPLE_QUERIES = [
   "State of large language models and their applications"
 ]
 
-export function ResearchInterface() {
-  const [query, setQuery] = useState('')
+interface ResearchInterfaceProps {
+  initialQuery?: string
+  initialResearchId?: string
+}
+
+export function ResearchInterface({ initialQuery, initialResearchId }: ResearchInterfaceProps = {}) {
+  const [query, setQuery] = useState(initialQuery || '')
   const [researchStatus, setResearchStatus] = useState<ResearchStatus | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [showOrchestration, setShowOrchestration] = useState(false)
+
+  // Load research if initial ID is provided
+  useEffect(() => {
+    if (initialResearchId) {
+      fetch(`/api/v1/research/${initialResearchId}`)
+        .then(res => res.json())
+        .then(data => setResearchStatus(data))
+        .catch(err => console.error('Failed to load research:', err))
+    }
+    if (initialQuery) {
+      setQuery(initialQuery)
+    }
+  }, [initialResearchId, initialQuery])
 
   const mutation = useMutation({
     mutationFn: (data: ResearchQuery) => submitResearch(data),
@@ -273,10 +291,69 @@ export function ResearchInterface() {
 
       {/* Results Display */}
       {researchStatus?.synthesis && (
-        <ResultsDisplay
-          synthesis={researchStatus.synthesis}
-          credibilityScore={researchStatus.credibility_score}
-        />
+        <>
+          <ResultsDisplay
+            synthesis={researchStatus.synthesis}
+            credibilityScore={researchStatus.credibility_score}
+          />
+          
+          {/* Follow-up Actions */}
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-blue-200 dark:border-blue-800">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h3 className="font-semibold text-lg mb-1">Want to dive deeper?</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Ask a follow-up question or refine your research
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setQuery('')
+                    setResearchStatus(null)
+                    document.querySelector('textarea')?.focus()
+                  }}
+                  variant="default"
+                  className="gap-2"
+                >
+                  <MessageSquarePlus className="h-4 w-4" />
+                  Ask Follow-up Question
+                </Button>
+              </div>
+              
+              {/* Suggested Follow-ups */}
+              <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-800">
+                <p className="text-sm font-medium mb-2">Suggested follow-ups:</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setQuery(`What are the latest developments related to "${researchStatus.query?.substring(0, 50)}..."?`)}
+                    className="text-xs"
+                  >
+                    Latest developments
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setQuery(`Compare the pros and cons of "${researchStatus.query?.substring(0, 50)}..."`)}
+                    className="text-xs"
+                  >
+                    Pros vs Cons
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setQuery(`What are the alternatives to "${researchStatus.query?.substring(0, 50)}..."?`)}
+                    className="text-xs"
+                  >
+                    Show alternatives
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {/* Error Display */}

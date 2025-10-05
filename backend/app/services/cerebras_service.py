@@ -69,7 +69,7 @@ class CerebrasService:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an expert research analyst. Synthesize information from multiple sources into a comprehensive, well-structured report."
+                    "content": "You are a helpful AI assistant like Perplexity. Answer questions directly and conversationally. Focus on what the user asked for. Use clear formatting with headers, bullet points, and numbered lists. Be comprehensive but concise. Always cite sources."
                 },
                 {
                     "role": "user",
@@ -132,7 +132,7 @@ class CerebrasService:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an expert research analyst. Synthesize information from multiple sources into a comprehensive, well-structured report."
+                    "content": "You are a helpful AI assistant like Perplexity. Answer questions directly and conversationally. Focus on what the user asked for. Use clear formatting with headers, bullet points, and numbered lists. Be comprehensive but concise. Always cite sources."
                 },
                 {
                     "role": "user",
@@ -178,53 +178,76 @@ class CerebrasService:
             
             if status == 'success' and source_result.get('data'):
                 data = source_result['data']
-                context_parts.append(f"\n## Source {idx}: {source_name}\n")
+                context_parts.append(f"\n## {source_name.replace('-', ' ').title()}\n")
                 
                 # Format data based on source type
                 if isinstance(data, dict):
-                    for key, value in data.items():
-                        context_parts.append(f"**{key}**: {value}\n")
+                    # Handle structured data (like search results)
+                    if 'results' in data:
+                        results = data['results']
+                        if isinstance(results, list):
+                            for i, item in enumerate(results[:10], 1):  # Top 10 results
+                                if isinstance(item, dict):
+                                    title = item.get('title', item.get('name', f'Result {i}'))
+                                    snippet = item.get('snippet', item.get('description', item.get('body', '')))
+                                    url = item.get('url', item.get('link', ''))
+                                    
+                                    context_parts.append(f"\n**{i}. {title}**\n")
+                                    if snippet:
+                                        context_parts.append(f"{snippet[:200]}...\n")
+                                    if url:
+                                        context_parts.append(f"Source: {url}\n")
+                                else:
+                                    context_parts.append(f"{i}. {str(item)[:200]}\n")
+                    else:
+                        # Generic dict formatting
+                        for key, value in data.items():
+                            if key not in ['count', 'source']:  # Skip metadata
+                                context_parts.append(f"**{key.replace('_', ' ').title()}**: {str(value)[:300]}\n")
+                
                 elif isinstance(data, list):
-                    for item in data[:5]:  # Limit to top 5 items
-                        context_parts.append(f"- {item}\n")
+                    for i, item in enumerate(data[:10], 1):
+                        if isinstance(item, dict):
+                            # Format dict items nicely
+                            title = item.get('title', item.get('name', f'Item {i}'))
+                            context_parts.append(f"\n{i}. **{title}**\n")
+                            for k, v in item.items():
+                                if k not in ['title', 'name'] and v:
+                                    context_parts.append(f"   - {k.replace('_', ' ').title()}: {str(v)[:150]}\n")
+                        else:
+                            context_parts.append(f"{i}. {str(item)[:200]}\n")
                 else:
-                    context_parts.append(str(data))
+                    context_parts.append(f"{str(data)[:500]}\n")
+                
+                context_parts.append("\n")
         
         return ''.join(context_parts) if context_parts else "No data available from sources."
     
     def _build_synthesis_prompt(self, query: str, context: str) -> str:
         """Build synthesis prompt"""
-        return f"""Research Query: {query}
+        return f"""User Question: {query}
 
-Based on the following information from multiple sources, provide a comprehensive research synthesis.
+Information from multiple sources:
 
 {context}
 
-Structure your response as follows:
+Instructions:
+1. Answer the user's question DIRECTLY - if they ask for "Top 10", list 10 items with clear rankings
+2. Use a conversational, easy-to-read style like Perplexity or ChatGPT
+3. Format with clear sections using markdown:
+   - Use ## for main sections
+   - Use numbered lists (1., 2., 3.) or bullet points as appropriate
+   - Use **bold** for important terms and model names
+   - Use code blocks for technical details if relevant
 
-# Executive Summary
-Provide a concise 2-3 sentence overview of the key findings and their significance.
+4. Structure should be natural and flow based on the question:
+   - For "Top 10" or rankings: Start with a brief intro, then numbered list with details
+   - For "What is" questions: Define clearly, then explain with examples
+   - For "How to" questions: Step-by-step guide
+   - For comparisons: Side-by-side analysis with pros/cons
 
-# Key Findings
-Present 3-5 major discoveries or insights as bullet points:
-- Each finding should be clear and actionable
-- Include specific data points or metrics where available
-- Highlight trends and patterns
+5. Keep it comprehensive but scannable - use short paragraphs
+6. End with a brief "Sources" section listing what each source contributed
+7. Be specific with names, numbers, and facts - avoid vague generalizations
 
-# Detailed Analysis
-Break down the research into logical subsections:
-- Use ### subheadings for different aspects
-- Include supporting evidence and examples
-- Connect findings to the original query
-- Explain implications and context
-
-# Conclusions & Recommendations
-- Summarize the most important takeaways
-- Provide actionable recommendations
-- Identify areas for further research
-- Note any limitations or caveats
-
-# Sources
-List the sources consulted with brief descriptions of what each contributed.
-
-Use clear markdown formatting with headers, bullet points, and **bold** for emphasis. Be concise yet comprehensive."""
+Remember: Answer exactly what the user asked for in a direct, helpful way."""

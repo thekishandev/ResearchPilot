@@ -173,84 +173,69 @@ async def health_check():
 @app.post("/query/{source}")
 async def query_source(source: str, request: Request):
     """
-    Route query to specific MCP source with security and monitoring
+    Route a query to a specific MCP source with security checks
     """
-    metrics["total_requests"] += 1
-    metrics["requests_by_source"][source] = metrics["requests_by_source"].get(source, 0) + 1
-    
-    # Validate source exists
-    if source not in MCP_SERVERS:
-        metrics["failed_requests"] += 1
-        raise HTTPException(status_code=404, detail=f"MCP source '{source}' not found")
-    
-    # Parse request body
-    try:
-        params = await request.json()
-    except Exception as e:
-        metrics["failed_requests"] += 1
-        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {str(e)}")
-    
-    # Security: SQL injection check
-    if not sql_injection_check(params):
-        metrics["failed_requests"] += 1
-        audit_log(source, "query", params, 0, False, "SQL injection detected")
-        raise HTTPException(status_code=400, detail="Security violation: dangerous SQL pattern detected")
-    
-    # Security: Rate limiting
-    if not rate_limit_check(source):
-        metrics["failed_requests"] += 1
-        audit_log(source, "query", params, 0, False, "Rate limit exceeded")
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    
-    # Route to MCP server
-    config = MCP_SERVERS[source]
     start_time = time.time()
     
+    # Get request body
+    body = await request.json()
+    
+    # Security checks
+    if not sql_injection_check(body):
+        audit_log(source, "search", body, time.time() - start_time, False, error="SQL injection blocked")
+        raise HTTPException(status_code=400, detail="Potential SQL injection detected")
+    
+    if not rate_limit_check(source):
+        audit_log(source, "search", body, time.time() - start_time, False, error="Rate limit exceeded")
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    
+    # Get source configuration
+    if source not in MCP_SERVERS:
+        raise HTTPException(status_code=404, detail=f"Unknown source: {source}")
+    
+    source_config = MCP_SERVERS[source]
+    source_url = source_config["url"]
+    timeout = source_config["timeout"]
+    
     try:
-        async with httpx.AsyncClient(timeout=config['timeout']) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
-                f"{config['url']}/query",
-                json=params
+                f"{source_url}/search",
+                json=body
             )
-            response.raise_for_status()
-            data = response.json()
-        
-        response_time = time.time() - start_time
-        
-        # Update metrics
-        metrics["successful_requests"] += 1
-        metrics["avg_response_times"][source].append(response_time)
-        if len(metrics["avg_response_times"][source]) > 100:
-            metrics["avg_response_times"][source].pop(0)
-        
-        # Audit log
-        audit_log(source, "query", params, response_time, True)
-        
-        return {
-            "source": source,
-            "data": data,
-            "response_time_ms": round(response_time * 1000, 2),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
+            response_time = time.time() - start_time
+            
+            # Update metrics
+            metrics["total_requests"] += 1
+            metrics["requests_by_source"][source] += 1
+            metrics["avg_response_times"][source].append(response_time)
+            
+            if response.status_code == 200:
+                metrics["successful_requests"] += 1
+                audit_log(source, "search", body, response_time, True)
+                
+                return {
+                    "data": response.json(),
+                    "response_time_ms": round(response_time * 1000, 2)
+                }
+            else:
+                metrics["failed_requests"] += 1
+                error_detail = f"MCP source error: {response.status_code}"
+                audit_log(source, "search", body, response_time, False, error=error_detail)
+                raise HTTPException(status_code=502, detail=error_detail)
+                
     except httpx.TimeoutException:
         response_time = time.time() - start_time
+        metrics["total_requests"] += 1
         metrics["failed_requests"] += 1
-        audit_log(source, "query", params, response_time, False, "Timeout")
-        raise HTTPException(status_code=504, detail=f"MCP source '{source}' timeout")
-    
-    except httpx.HTTPStatusError as e:
-        response_time = time.time() - start_time
-        metrics["failed_requests"] += 1
-        audit_log(source, "query", params, response_time, False, f"HTTP {e.response.status_code}")
-        raise HTTPException(status_code=502, detail=f"MCP source error: {e.response.status_code}")
-    
+        audit_log(source, "search", body, response_time, False, error="Timeout")
+        raise HTTPException(status_code=504, detail="Source timeout")
     except Exception as e:
         response_time = time.time() - start_time
+        metrics["total_requests"] += 1
         metrics["failed_requests"] += 1
-        audit_log(source, "query", params, response_time, False, str(e))
-        logger.error(f"Error querying {source}: {e}")
-        raise HTTPException(status_code=500, detail=f"Gateway error: {str(e)}")
+        audit_log(source, "search", body, response_time, False, error=str(e))
+        raise HTTPException(status_code=502, detail=f"Source error: {str(e)}")
 
 
 @app.post("/query-all")
@@ -272,7 +257,7 @@ async def query_all_sources(request: Request):
         try:
             async with httpx.AsyncClient(timeout=config['timeout']) as client:
                 start_time = time.time()
-                response = await client.post(f"{config['url']}/query", json=params)
+                response = await client.post(f"{config['url']}/search", json=params)
                 response_time = time.time() - start_time
                 
                 if response.status_code == 200:

@@ -207,3 +207,40 @@ async def process_research_query(
                 await db.commit()
             except Exception as update_error:
                 logger.error(f"Failed to update error status: {update_error}")
+
+
+@router.get("/history", response_model=list[ResearchResponse])
+async def get_research_history(
+    limit: int = 20,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get research history (recent queries)
+    """
+    try:
+        from app.models.research import Research
+        from sqlalchemy import select, desc
+        
+        # Query recent research entries
+        result = await db.execute(
+            select(Research)
+            .order_by(desc(Research.created_at))
+            .limit(limit)
+            .offset(offset)
+        )
+        research_items = result.scalars().all()
+        
+        return [
+            ResearchResponse(
+                id=str(item.id),
+                status=item.status,
+                query=item.query
+            )
+            for item in research_items
+        ]
+        
+    except Exception as e:
+        logger.error(f"Error fetching research history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch research history")
+
