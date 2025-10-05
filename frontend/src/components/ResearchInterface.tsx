@@ -34,69 +34,25 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
   const [isListening, setIsListening] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
 
-  // Initialize Web Speech API
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
-      const recognitionInstance = new SpeechRecognition()
-      recognitionInstance.continuous = false
-      recognitionInstance.interimResults = false
-      recognitionInstance.lang = 'en-US'
-
-      recognitionInstance.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript
-        console.log('Voice input transcript:', transcript)
-        setQuery(transcript)
-        setIsListening(false)
-        
-        // Auto-submit the query after voice input
-        // Wait for state to update
-        setTimeout(() => {
-          if (transcript.trim() && transcript.length >= 10) {
-            console.log('Auto-submitting voice query...')
-            mutation.mutate({
-              query: transcript.trim(),
-              sources: undefined,
-              max_sources: 6,
-              include_credibility: true,
-              parent_research_id: currentResearchId || undefined,
-            })
-          } else {
-            alert('Please speak at least 10 characters for a valid research query.')
-          }
-        }, 100)
-      }
-
-      recognitionInstance.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error)
-        setIsListening(false)
-        if (event.error === 'not-allowed') {
-          alert('Microphone access denied. Please allow microphone access in your browser settings.')
-        } else if (event.error === 'no-speech') {
-          alert('No speech detected. Please try again.')
-        }
-      }
-
-      recognitionInstance.onend = () => {
-        setIsListening(false)
-      }
-
-      setRecognition(recognitionInstance)
-    }
-  }, [])
-
   const toggleVoiceInput = () => {
+    console.log('toggleVoiceInput called, recognition:', !!recognition, 'isListening:', isListening)
+    
     if (!recognition) {
       alert('Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.')
       return
     }
 
     if (isListening) {
+      console.log('Stopping recognition...')
       recognition.stop()
-      setIsListening(false)
     } else {
-      recognition.start()
-      setIsListening(true)
+      console.log('Starting recognition...')
+      try {
+        recognition.start()
+      } catch (error) {
+        console.error('Error starting recognition:', error)
+        alert('Could not start voice recognition. Please try again.')
+      }
     }
   }
 
@@ -142,6 +98,68 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
       console.error('Research submission error:', error)
     },
   })
+
+  // Initialize Web Speech API after mutation is defined
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
+      const recognitionInstance = new SpeechRecognition()
+      recognitionInstance.continuous = false
+      recognitionInstance.interimResults = false
+      recognitionInstance.lang = 'en-US'
+
+      recognitionInstance.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript
+        console.log('Voice input transcript:', transcript)
+        setQuery(transcript)
+        setIsListening(false)
+        
+        // Auto-submit the query after voice input
+        setTimeout(() => {
+          if (transcript.trim() && transcript.length >= 10) {
+            console.log('Auto-submitting voice query...')
+            // Call mutation directly
+            mutation.mutate({
+              query: transcript.trim(),
+              sources: undefined,
+              max_sources: 6,
+              include_credibility: true,
+              parent_research_id: currentResearchId || undefined,
+            })
+          } else {
+            alert('Please speak at least 10 characters for a valid research query.')
+          }
+        }, 100)
+      }
+
+      recognitionInstance.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error)
+        setIsListening(false)
+        if (event.error === 'not-allowed') {
+          alert('Microphone access denied. Please allow microphone access in your browser settings.')
+        } else if (event.error === 'no-speech') {
+          alert('No speech detected. Please try again.')
+        } else {
+          alert(`Speech recognition error: ${event.error}`)
+        }
+      }
+
+      recognitionInstance.onend = () => {
+        console.log('Speech recognition ended')
+        setIsListening(false)
+      }
+
+      recognitionInstance.onstart = () => {
+        console.log('Speech recognition started')
+        setIsListening(true)
+      }
+
+      setRecognition(recognitionInstance)
+      console.log('Web Speech API initialized successfully')
+    } else {
+      console.warn('Web Speech API not supported in this browser')
+    }
+  }, [mutation, currentResearchId])
 
   const startStreamingResults = async (researchId: string) => {
     setIsStreaming(true)
