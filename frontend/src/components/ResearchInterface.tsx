@@ -27,15 +27,21 @@ interface ResearchInterfaceProps {
 export function ResearchInterface({ initialQuery, initialResearchId }: ResearchInterfaceProps = {}) {
   const [query, setQuery] = useState(initialQuery || '')
   const [researchStatus, setResearchStatus] = useState<ResearchStatus | null>(null)
+  const [conversationHistory, setConversationHistory] = useState<ResearchStatus[]>([])  // Track all research in conversation
   const [isStreaming, setIsStreaming] = useState(false)
   const [showOrchestration, setShowOrchestration] = useState(false)
+  const [currentResearchId, setCurrentResearchId] = useState<string | null>(null)  // Track current research for follow-ups
 
   // Load research if initial ID is provided
   useEffect(() => {
     if (initialResearchId) {
       fetch(`/api/v1/research/${initialResearchId}`)
         .then(res => res.json())
-        .then(data => setResearchStatus(data))
+        .then(data => {
+          setResearchStatus(data)
+          setCurrentResearchId(data.id)
+          setConversationHistory([data])
+        })
         .catch(err => console.error('Failed to load research:', err))
     }
     if (initialQuery) {
@@ -48,11 +54,17 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
     onSuccess: (response) => {
       console.log('Research submitted:', response)
       // Set initial status
-      setResearchStatus({
+      const newResearch = {
         id: response.id,
         status: response.status || 'processing',
         query: query.trim(),
-      } as ResearchStatus)
+      } as ResearchStatus
+      
+      setResearchStatus(newResearch)
+      // Add to conversation history
+      setConversationHistory(prev => [...prev, newResearch])
+      // Update current research ID for follow-ups
+      setCurrentResearchId(response.id)
       // Show orchestration status
       setShowOrchestration(true)
       // Start streaming results
@@ -133,8 +145,6 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
       console.log('Query too short, minimum 10 characters required')
       return
     }
-
-    setResearchStatus(null)
     
     console.log('Submitting research query:', query)
     mutation.mutate({
@@ -142,6 +152,7 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
       sources: undefined,
       max_sources: 6,
       include_credibility: true,
+      parent_research_id: currentResearchId || undefined,  // Include parent ID for follow-ups
     })
   }
 
@@ -310,7 +321,7 @@ export function ResearchInterface({ initialQuery, initialResearchId }: ResearchI
                 <Button
                   onClick={() => {
                     setQuery('')
-                    setResearchStatus(null)
+                    // Don't clear researchStatus - keep it for follow-up context
                     document.querySelector('textarea')?.focus()
                   }}
                   variant="default"

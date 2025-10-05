@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS research (
     synthesis TEXT,
     credibility_score FLOAT,
     error TEXT,
+    parent_research_id VARCHAR(255) REFERENCES research(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP WITH TIME ZONE
 );
@@ -15,6 +16,7 @@ CREATE TABLE IF NOT EXISTS research (
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_research_status ON research(status);
 CREATE INDEX IF NOT EXISTS idx_research_created_at ON research(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_research_parent ON research(parent_research_id);
 
 -- Create function to clean old research
 CREATE OR REPLACE FUNCTION clean_old_research() RETURNS void AS $$

@@ -1,7 +1,7 @@
 """
 Research model - Database schema
 """
-from sqlalchemy import Column, String, DateTime, JSON, Float, Text
+from sqlalchemy import Column, String, DateTime, JSON, Float, Text, ForeignKey
 from sqlalchemy.sql import func
 import uuid
 
@@ -20,6 +20,7 @@ class Research(Base):
     synthesis = Column(Text, nullable=True)
     credibility_score = Column(Float, nullable=True)
     error = Column(Text, nullable=True)
+    parent_research_id = Column(String, ForeignKey("research.id"), nullable=True)  # For follow-up queries
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
     
